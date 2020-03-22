@@ -54,7 +54,22 @@ class Calculator extends Component {
     return loan;
   };
 
+  // Function to show/hide specifig loan durations
+  renderMaxDuration = maxDuration => {
+    const allOptions = [3, 6, 9, 12, 24, 36, 48, 60];
+    const durationOptions = {};
+
+    for (const duration of allOptions) {
+      // push duration when lower or equal to maxDuration
+      if (duration <= maxDuration)
+        durationOptions[duration] = `${duration} maanden`;
+    }
+
+    return durationOptions;
+  };
+
   render() {
+    const { maxLoan } = this.state;
     return (
       <div className="calculator">
         <div className="calculator-input">
@@ -76,8 +91,8 @@ class Calculator extends Component {
               type="number"
               attributes={{
                 min: 5e3,
-                max: this.state.maxLoan.amount,
-                placeholder: `van €5K tot €${this.state.maxLoan.amount / 1e3}K`
+                max: maxLoan.amount,
+                placeholder: `van €5K tot €${maxLoan.amount / 1e3}K`
               }}
               icon={<EuroSymbol />}
             />
@@ -95,16 +110,7 @@ class Calculator extends Component {
             <CalculatorSelect
               name="duration"
               label="Looptijd"
-              options={{
-                3: "6 maanden",
-                6: "6 maanden",
-                9: "9 maanden",
-                12: "12 maanden",
-                24: "24 maanden",
-                36: "36 maanden",
-                48: "48 maanden",
-                60: "60 maanden"
-              }}
+              options={this.renderMaxDuration(maxLoan.duration)}
               callback={this.saveInputToState}
             />
           </form>
