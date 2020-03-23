@@ -1,5 +1,9 @@
 import React, { Component } from "react";
+import config from "../config";
+import { validateConfig } from "../helpers";
 import { CalculatorSelect, CalculatorInput } from "./Fields";
+import CalculatorOutput from "./CalculatorOutput";
+import CalculatorError from "./CalculatorError";
 import { ReactComponent as EuroSymbol } from "./assets/euro.svg";
 import "./Calculator.scss";
 
@@ -7,10 +11,18 @@ class Calculator extends Component {
   constructor(props) {
     super(props);
 
-    // Set initial values
+    // Validate config
+    validateConfig(
+      "maxLoanDuration",
+      "allDurationOptions",
+      "locale.thousandsSeparator"
+    );
+
+    // Initial values
     this.state = {
       product: "marketing",
       legal_form: "bv",
+      duration: 3,
       maxLoan: {
         amount: 250e3,
         duration: 36
@@ -19,10 +31,16 @@ class Calculator extends Component {
   }
 
   // Callback function to allow input to be saved in state
-  saveInputToState = event => {
+  saveInputToState = (event, numeric = false) => {
     event.persist();
 
-    const { name, value } = event.target;
+    let { name, value } = event.target;
+
+    // Filter for decimals if requested
+    const numericValue = parseInt(value.replace(/\D/g, ""));
+    // eslint-disable-next-line
+    if (numeric || value == numericValue)
+      value = parseInt(value.replace(/\D/g, "")); //replace is faster then match+join https://jsben.ch/YPVJe
 
     this.setState({ [name]: value }, this.saveMaxLoanToState);
 
@@ -35,7 +53,6 @@ class Calculator extends Component {
     if (!product || !legal_form) return null;
 
     const maxLoan = this.calculateMaxLoan(product, legal_form);
-    console.log(maxLoan);
     this.setState({ maxLoan: maxLoan });
 
     return null;
@@ -46,26 +63,54 @@ class Calculator extends Component {
     let loan = { amount: null, duration: null };
     if (product === "marketing") {
       loan.amount = 250e3;
-      loan.duration = 36;
+      loan.duration = config.maxLoanDuration.marketing;
     } else if (product === "equipment") {
       loan.amount = legalForm === "bv" ? 500e3 : 250e3;
-      loan.duration = 60;
+      loan.duration = config.maxLoanDuration.equipment;
     }
     return loan;
   };
 
   // Function to show/hide specifig loan durations
   renderMaxDuration = maxDuration => {
-    const allOptions = [3, 6, 9, 12, 24, 36, 48, 60];
     const durationOptions = {};
 
-    for (const duration of allOptions) {
+    for (const duration of config.allDurationOptions) {
       // push duration when lower or equal to maxDuration
       if (duration <= maxDuration)
         durationOptions[duration] = `${duration} maanden`;
     }
 
     return durationOptions;
+  };
+
+  // Sanitize input for requested amount
+  // Returns sanitized input
+  sanitizeInputAmount = requestedAmount => {
+    // Filter non-numeric characters
+    requestedAmount = requestedAmount.replace(/\D/g, "");
+
+    // Save integer for math
+    const requestedAmountInt = parseInt(requestedAmount);
+
+    // Add thousands separator
+    requestedAmount = requestedAmount
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, config.locale.thousandsSeparator);
+
+    return {
+      decimal: requestedAmountInt,
+      print: requestedAmount
+    };
+  };
+
+  // Callback function to sanitize and save requested amount
+  saveAmountToState = event => {
+    event.persist();
+
+    event.target.value = this.sanitizeInputAmount(event.target.value).print;
+
+    return this.saveInputToState(event, true);
   };
 
   render() {
@@ -88,13 +133,15 @@ class Calculator extends Component {
             <CalculatorInput
               name="requested_amount"
               label="Bedrag"
-              type="number"
+              type="text"
               attributes={{
                 min: 5e3,
                 max: maxLoan.amount,
-                placeholder: `van €5K tot €${maxLoan.amount / 1e3}K`
+                placeholder: `van €5K tot €${maxLoan.amount / 1e3}K`,
+                pattern: "d*" // eslint-disable-line
               }}
               icon={<EuroSymbol />}
+              callback={this.saveAmountToState}
             />
 
             <CalculatorSelect
@@ -115,6 +162,10 @@ class Calculator extends Component {
             />
           </form>
         </div>
+
+        <CalculatorError>
+          <CalculatorOutput input={this.state} />
+        </CalculatorError>
       </div>
     );
   }
