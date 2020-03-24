@@ -1,4 +1,9 @@
 import React, { Component } from "react";
+import styled from "styled-components";
+
+const Error = styled.p`
+  font-family: monospace;
+`;
 
 class CalculatorError extends Component {
   constructor(props) {
@@ -18,7 +23,7 @@ class CalculatorError extends Component {
 
   render() {
     if (this.state.hasError) {
-      return <p>Er ging iets mis.</p>;
+      return <Error>Er ging iets mis.</Error>;
     }
 
     return this.props.children;

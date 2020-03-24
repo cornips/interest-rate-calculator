@@ -1,14 +1,33 @@
 import React, { Component } from "react";
-import { validateObject, validateConfig } from "../helpers";
 import config from "../config";
+import { validateObject, validateConfig } from "../helpers";
+import { Title, ReceiptWrapper, Receipt } from "../Style/layout";
 
 class CalculatorOutput extends Component {
   constructor(props) {
     super(props);
 
+    this.state = {
+      open: false,
+      rate: null
+    };
+
     // Validate config
     validateConfig("maxLoanDuration", "interestRates", "interestRateRounding");
   }
+
+  UNSAFE_componentWillReceiveProps = nextProps => {
+    const shouldOpen = Boolean(nextProps.input.requested_amount);
+
+    this.setState({
+      // Open or close based on input
+      open: shouldOpen,
+      // Add calculated interest rate to state
+      rate: shouldOpen
+        ? this.calculateInterest(nextProps.input)
+        : this.state.rate
+    });
+  };
 
   calculateInterest = input => {
     const expectedScheme = {
@@ -19,6 +38,8 @@ class CalculatorOutput extends Component {
 
     // Stop execution when input does not meet scheme
     if (!validateObject(input, expectedScheme)) return false;
+
+    if (!input.requested_amount) return;
 
     // Decide the rate base to use
     let rateBase;
@@ -49,30 +70,17 @@ class CalculatorOutput extends Component {
   };
 
   render() {
-    const { input } = this.props;
-
-    // Don't show when no interest rate is available
-    if (!input.requested_amount) return null;
-
-    // example input
-    // input = {
-    //   product: "marketing",
-    //   legal_form: "bv",
-    //   maxLoan: {
-    //     amount: 250e3,
-    //     duration: 36
-    //   },
-    //   requested_amount: 3357
-    // };
+    const { open, rate } = this.state;
 
     return (
-      <div className="calculator-output">
-        <h3>Rente</h3>
-        <p className="interest-rate">
-          We bieden een rentepercentage van{" "}
-          <strong>{this.calculateInterest(input)}%</strong>
-        </p>
-      </div>
+      <ReceiptWrapper>
+        <Receipt className={open ? "open" : ""}>
+          <Title as="h3">Rente</Title>
+          <p>
+            We bieden een rentepercentage van <strong>{rate}%</strong>
+          </p>
+        </Receipt>
+      </ReceiptWrapper>
     );
   }
 }

@@ -1,24 +1,29 @@
 import React, { Component } from "react";
+import { Label, Input } from "../../Style/form";
 
 class CalculatorInput extends Component {
   render() {
     const { name, label, type, attributes, icon, callback } = this.props;
 
-    const iconClass = icon ? "has-icon" : "";
-    const iconObject = () => {
-      if (icon) {
-        return <span className="icon">{icon}</span>;
-      }
-    };
+    const iconObject = () => (icon ? icon : null);
+    const input = (
+      <Input name={name} type={type} onChange={callback} {...attributes} />
+    );
+    let inputGroup;
+    if (icon)
+      inputGroup = (
+        <div className="has-icon">
+          {iconObject()}
+          {input}
+        </div>
+      );
+    else inputGroup = { input };
 
     return (
-      <div className={`calculator-input calculator-input-${name} ${iconClass}`}>
-        <label>
-          <span className="label">{label}</span>
-          {iconObject()}
-          <input name={name} type={type} onChange={callback} {...attributes} />
-        </label>
-      </div>
+      <Label>
+        <span>{label}</span>
+        {inputGroup}
+      </Label>
     );
   }
 }

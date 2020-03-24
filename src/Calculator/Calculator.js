@@ -4,8 +4,9 @@ import { validateConfig } from "../helpers";
 import { CalculatorSelect, CalculatorInput } from "./Fields";
 import CalculatorOutput from "./CalculatorOutput";
 import CalculatorError from "./CalculatorError";
+
 import { ReactComponent as EuroSymbol } from "./assets/euro.svg";
-import "./Calculator.scss";
+import { Title, Card } from "../Style/layout";
 
 class Calculator extends Component {
   constructor(props) {
@@ -71,7 +72,7 @@ class Calculator extends Component {
     return loan;
   };
 
-  // Function to show/hide specifig loan durations
+  // Function to show/hide specific loan durations
   renderMaxDuration = maxDuration => {
     const durationOptions = {};
 
@@ -113,19 +114,35 @@ class Calculator extends Component {
     return this.saveInputToState(event, true);
   };
 
+  validateInputAmount = (event, rules) => {
+    event.persist();
+
+    // Filter non-numeric characters and parse integer for math
+    const requestedAmountInt = parseInt(event.target.value.replace(/\D/g, ""));
+
+    // Set amount to min or max based on rules
+    if (rules.min && requestedAmountInt < rules.min)
+      event.target.value = this.sanitizeInputAmount(rules.min.toString()).print;
+    if (rules.max && requestedAmountInt > rules.max)
+      event.target.value = this.sanitizeInputAmount(rules.max.toString()).print;
+  };
+
   render() {
     const { maxLoan } = this.state;
     return (
-      <div className="calculator">
-        <div className="calculator-input">
-          <h2>Ontdek jouw mogelijkheden</h2>
-          <form className="form-horizontal">
+      <div>
+        <Card>
+          <Title>Ontdek jouw mogelijkheden</Title>
+          <form>
             <CalculatorSelect
               name="product"
               label="Financieringsdoel"
               options={{
                 marketing: "Marketing",
                 equipment: "Equipment"
+              }}
+              attributes={{
+                large: true
               }}
               callback={this.saveInputToState}
             />
@@ -138,7 +155,13 @@ class Calculator extends Component {
                 min: 5e3,
                 max: maxLoan.amount,
                 placeholder: `van €5K tot €${maxLoan.amount / 1e3}K`,
-                pattern: "d*" // eslint-disable-line
+                pattern: "d*", // eslint-disable-line
+                large: true,
+                onBlur: event =>
+                  this.validateInputAmount(event, {
+                    min: 5e3,
+                    max: maxLoan.amount
+                  })
               }}
               icon={<EuroSymbol />}
               callback={this.saveAmountToState}
@@ -151,6 +174,9 @@ class Calculator extends Component {
                 bv: "BV",
                 eenmanszaak: "Eenmanszaak"
               }}
+              attributes={{
+                large: true
+              }}
               callback={this.saveInputToState}
             />
 
@@ -158,10 +184,13 @@ class Calculator extends Component {
               name="duration"
               label="Looptijd"
               options={this.renderMaxDuration(maxLoan.duration)}
+              attributes={{
+                large: true
+              }}
               callback={this.saveInputToState}
             />
           </form>
-        </div>
+        </Card>
 
         <CalculatorError>
           <CalculatorOutput input={this.state} />
