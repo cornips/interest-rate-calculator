@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import config from "../config";
-import { validateConfig } from "../helpers";
+import { validateConfig, stringToInt, i18n } from "../helpers";
 import { CalculatorSelect, CalculatorInput } from "./Fields";
 import CalculatorOutput from "./CalculatorOutput";
 import CalculatorError from "./CalculatorError";
@@ -14,21 +14,25 @@ class Calculator extends Component {
 
     // Validate config
     validateConfig(
-      "maxLoanDuration",
+      "minLoan.amount",
+      "maxLoan.default",
       "allDurationOptions",
-      "locale.thousandsSeparator"
+      "locale"
     );
 
     // Initial values
     this.state = {
       product: "marketing",
       legal_form: "bv",
-      duration: 3,
+      duration: config.defaultDuration,
+      requested_amount: "",
       maxLoan: {
         amount: 250e3,
         duration: 36
       }
     };
+
+    this.requestedAmountInput = React.createRef();
   }
 
   // Callback function to allow input to be saved in state
@@ -38,10 +42,17 @@ class Calculator extends Component {
     let { name, value } = event.target;
 
     // Filter for decimals if requested
-    const numericValue = parseInt(value.replace(/\D/g, ""));
+    const numericValue = stringToInt(value);
+
+    // Treat as numeric when string is number
     // eslint-disable-next-line
-    if (numeric || value == numericValue)
-      value = parseInt(value.replace(/\D/g, "")); //replace is faster then match+join https://jsben.ch/YPVJe
+    if (value == numericValue) numeric = true;
+
+    // Set string value to numeric value when needed
+    if (numeric) value = numericValue;
+
+    // Empty value on unexpected value (e.g. NaN)
+    if (!event.target.value) value = "";
 
     this.setState({ [name]: value }, this.saveMaxLoanToState);
 
@@ -62,13 +73,13 @@ class Calculator extends Component {
   // Function to calculate max loan based on input
   calculateMaxLoan = (product, legalForm) => {
     let loan = { amount: null, duration: null };
-    if (product === "marketing") {
-      loan.amount = 250e3;
-      loan.duration = config.maxLoanDuration.marketing;
-    } else if (product === "equipment") {
-      loan.amount = legalForm === "bv" ? 500e3 : 250e3;
-      loan.duration = config.maxLoanDuration.equipment;
+
+    if (validateConfig(`maxLoan.${product}`)) {
+      // Load max amount and duration of product from config
+      loan.amount = config.maxLoan[product].amount[legalForm];
+      loan.duration = config.maxLoan[product].duration;
     }
+
     return loan;
   };
 
@@ -79,7 +90,7 @@ class Calculator extends Component {
     for (const duration of config.allDurationOptions) {
       // push duration when lower or equal to maxDuration
       if (duration <= maxDuration)
-        durationOptions[duration] = `${duration} maanden`;
+        durationOptions[duration] = `${duration} ${i18n("months")}`;
     }
 
     return durationOptions;
@@ -88,16 +99,16 @@ class Calculator extends Component {
   // Sanitize input for requested amount
   // Returns sanitized input
   sanitizeInputAmount = requestedAmount => {
-    // Filter non-numeric characters
-    requestedAmount = requestedAmount.replace(/\D/g, "");
+    // Filter non-numeric characters and save for math
+    const requestedAmountInt = (requestedAmount = stringToInt(requestedAmount));
 
-    // Save integer for math
-    const requestedAmountInt = parseInt(requestedAmount);
+    // Return null when not a number
+    if (!requestedAmount || isNaN(requestedAmount)) return;
 
     // Add thousands separator
     requestedAmount = requestedAmount
       .toString()
-      .replace(/\B(?=(\d{3})+(?!\d))/g, config.locale.thousandsSeparator);
+      .replace(/\B(?=(\d{3})+(?!\d))/g, i18n("_thousandsSeparator"));
 
     return {
       decimal: requestedAmountInt,
@@ -108,92 +119,136 @@ class Calculator extends Component {
   // Callback function to sanitize and save requested amount
   saveAmountToState = event => {
     event.persist();
+    const sanitizedValue = this.sanitizeInputAmount(event.target.value);
 
-    event.target.value = this.sanitizeInputAmount(event.target.value).print;
+    if (sanitizedValue) event.target.value = sanitizedValue.print;
 
     return this.saveInputToState(event, true);
   };
 
+  // Set requested amount to a valid value
   validateInputAmount = (event, rules) => {
     event.persist();
 
+    event.target.value = this.validateAmount(event.target.value, rules);
+
+    return this.saveInputToState(event, true);
+  };
+
+  // Validate a given amount against certain rules
+  validateAmount = (amount, rules, minOnly = false) => {
     // Filter non-numeric characters and parse integer for math
-    const requestedAmountInt = parseInt(event.target.value.replace(/\D/g, ""));
+    const requestedAmountInt = stringToInt(amount);
 
     // Set amount to min or max based on rules
     if (rules.min && requestedAmountInt < rules.min)
-      event.target.value = this.sanitizeInputAmount(rules.min.toString()).print;
-    if (rules.max && requestedAmountInt > rules.max)
-      event.target.value = this.sanitizeInputAmount(rules.max.toString()).print;
+      amount = this.sanitizeInputAmount(rules.min.toString()).print;
+    if (!minOnly && rules.max && requestedAmountInt > rules.max)
+      amount = this.sanitizeInputAmount(rules.max.toString()).print;
+
+    return amount;
   };
 
   render() {
-    const { maxLoan } = this.state;
+    const { duration, maxLoan } = this.state;
+
+    // Return state to output when the input is valid
+    const outputState = () => {
+      if (this.requestedAmountInput.current) {
+        if (
+          this.state.requested_amount ===
+          this.validateAmount(
+            this.state.requested_amount,
+            this.requestedAmountInput.current.props.rules,
+            true
+          )
+        )
+          return this.state;
+      }
+    };
+
+    // escape dot in regex
+    const thousandSeparatorRegEx =
+      i18n("_thousandsSeparator") === "." ? "\\." : i18n("_thousandsSeparator");
+
     return (
       <div>
         <Card>
-          <Title>Ontdek jouw mogelijkheden</Title>
-          <form>
+          <Title>{i18n("Discover your options")}</Title>
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+            }}
+          >
             <CalculatorSelect
               name="product"
-              label="Financieringsdoel"
+              label={i18n("Financing purpose")}
+              callback={this.saveInputToState}
               options={{
-                marketing: "Marketing",
-                equipment: "Equipment"
+                marketing: i18n("Marketing"),
+                equipment: i18n("Equipment")
               }}
               attributes={{
                 large: true
               }}
-              callback={this.saveInputToState}
             />
 
             <CalculatorInput
               name="requested_amount"
-              label="Bedrag"
+              label={i18n("Amount")}
               type="text"
-              attributes={{
-                min: 5e3,
-                max: maxLoan.amount,
-                placeholder: `van €5K tot €${maxLoan.amount / 1e3}K`,
-                pattern: "d*", // eslint-disable-line
-                large: true,
-                onBlur: event =>
-                  this.validateInputAmount(event, {
-                    min: 5e3,
-                    max: maxLoan.amount
-                  })
-              }}
               icon={<EuroSymbol />}
               callback={this.saveAmountToState}
+              ref={this.requestedAmountInput}
+              rules={{
+                min: config.minLoan.amount,
+                max: maxLoan.amount
+              }}
+              attributes={{
+                min: config.minLoan.amount,
+                max: maxLoan.amount,
+                placeholder: i18n("from €{min}K to €{max}K", {
+                  min: config.minLoan.amount / 1e3,
+                  max: maxLoan.amount / 1e3
+                }),
+                pattern: `[\\d${thousandSeparatorRegEx}]{1,}`,
+                large: true,
+                onBlur: event =>
+                  this.validateInputAmount(
+                    event,
+                    this.requestedAmountInput.current.props.rules
+                  )
+              }}
             />
 
             <CalculatorSelect
               name="legal_form"
-              label="Rechtsvorm"
+              label={i18n("Legal form")}
+              callback={this.saveInputToState}
               options={{
-                bv: "BV",
-                eenmanszaak: "Eenmanszaak"
+                bv: i18n("BV"),
+                sole_proprietorship: i18n("Sole proprietorship")
               }}
               attributes={{
                 large: true
               }}
-              callback={this.saveInputToState}
             />
 
             <CalculatorSelect
               name="duration"
-              label="Looptijd"
+              label={i18n("Term")}
+              callback={this.saveInputToState}
               options={this.renderMaxDuration(maxLoan.duration)}
               attributes={{
-                large: true
+                large: true,
+                value: duration
               }}
-              callback={this.saveInputToState}
             />
           </form>
         </Card>
 
         <CalculatorError>
-          <CalculatorOutput input={this.state} />
+          <CalculatorOutput input={outputState()} />
         </CalculatorError>
       </div>
     );

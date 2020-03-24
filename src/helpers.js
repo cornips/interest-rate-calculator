@@ -1,4 +1,5 @@
 const config = require("./config.js");
+const locale = require("./locale.js");
 
 // Validate object contents based on given scheme
 // Returns boolean
@@ -57,13 +58,46 @@ const validateConfig = (...validateProperty) => {
 
       if (!lastProperty) {
         console.error(`Missing property \`${fullProperty}\` in config`);
-        break;
+        return false;
       }
     }
   }
+
+  return true;
+};
+
+// Convert string to sanitized integer
+const stringToInt = string => {
+  string = string.toString();
+  return parseInt(string.replace(/\D/g, "")); //replace is faster then match+join https://jsben.ch/YPVJe
+};
+
+// Return translation from string if found and not null, otherwise return original string
+const i18n = (string, variables) => {
+  // Get dictionary for locale, otherwise use first dictonary
+  let dictionary = locale[config.locale];
+  if (!dictionary) dictionary = locale[Object.keys(locale)[0]];
+
+  // Get translation, otherwise use original string
+  let translatedString = dictionary[string];
+  if (!translatedString) translatedString = string;
+
+  // If variables are provided, replace them with their value
+  if (variables) {
+    for (const variable of Object.entries(variables)) {
+      translatedString = translatedString.replace(
+        `{${variable[0]}}`,
+        variable[1]
+      );
+    }
+  }
+
+  return translatedString;
 };
 
 module.exports = {
   validateObject,
-  validateConfig
+  validateConfig,
+  stringToInt,
+  i18n
 };

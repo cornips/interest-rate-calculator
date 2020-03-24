@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import config from "../config";
-import { validateObject, validateConfig } from "../helpers";
+import { validateObject, validateConfig, i18n } from "../helpers";
 import { Title, ReceiptWrapper, Receipt } from "../Style/layout";
 
 class CalculatorOutput extends Component {
@@ -13,11 +13,13 @@ class CalculatorOutput extends Component {
     };
 
     // Validate config
-    validateConfig("maxLoanDuration", "interestRates", "interestRateRounding");
+    validateConfig("maxLoan", "interestRates", "interestRateRounding");
   }
 
   UNSAFE_componentWillReceiveProps = nextProps => {
-    const shouldOpen = Boolean(nextProps.input.requested_amount);
+    const shouldOpen = Boolean(
+      nextProps.input && nextProps.input.requested_amount
+    );
 
     this.setState({
       // Open or close based on input
@@ -37,7 +39,11 @@ class CalculatorOutput extends Component {
     };
 
     // Stop execution when input does not meet scheme
-    if (!validateObject(input, expectedScheme)) return false;
+    if (
+      !validateObject(input, expectedScheme) ||
+      !validateConfig(`maxLoan.${input.product}`)
+    )
+      return false;
 
     if (!input.requested_amount) return;
 
@@ -63,7 +69,7 @@ class CalculatorOutput extends Component {
     const rate =
       rateBase[0] +
       (rateDifference * (input.duration - durationBase)) /
-        (config.maxLoanDuration[input.product] - durationBase);
+        (config.maxLoan[input.product].duration - durationBase);
 
     const round = Number(`1e+${config.interestRateRounding}`);
     return Math.round(rate * round) / round;
@@ -75,10 +81,15 @@ class CalculatorOutput extends Component {
     return (
       <ReceiptWrapper>
         <Receipt className={open ? "open" : ""}>
-          <Title as="h3">Rente</Title>
-          <p>
-            We bieden een rentepercentage van <strong>{rate}%</strong>
-          </p>
+          <Title as="h3">{i18n("Interest rate")}</Title>
+          <p
+            dangerouslySetInnerHTML={{
+              __html: i18n(
+                "We offer an interest rate of <strong>{rate}%</strong>",
+                { rate: rate }
+              )
+            }}
+          ></p>
         </Receipt>
       </ReceiptWrapper>
     );
